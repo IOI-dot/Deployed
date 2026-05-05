@@ -21,14 +21,21 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/timeline', timelineRoutes); // Added from friend's push
 
-// Sync Database and Start
-sequelize.sync()
+// Sync database tables (runs once on cold-start in serverless)
+sequelize.sync({ alter: true })
     .then(() => {
         console.log('✅ PostgreSQL Connected & Synced (Supabase)');
-        app.listen(PORT, () => {
-            console.log(`🚀 Server running on http://localhost:${PORT}`);
-        });
     })
     .catch(err => {
         console.error('❌ Database Sync Error:', err);
     });
+
+// Only listen on a port when running locally (not on Vercel)
+if (process.env.VERCEL !== '1') {
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+    });
+}
+
+// Export for Vercel serverless
+module.exports = app;

@@ -20,12 +20,13 @@ router.get('/', async (req, res) => {
                     json_agg(
                         json_build_object(
                             'start_hour', b.start_time, 
+                            'end_hour', b.end_time,
                             'status', b.status
                         )
                     ) FILTER (WHERE b.booking_id IS NOT NULL), '[]'
                 ) as bookings
             FROM rooms r
-            LEFT JOIN bookings b ON r.id = b.room_id
+            LEFT JOIN bookings b ON r.id = b.room_id AND b.status = 'Confirmed'
             WHERE 1=1
         `;
         
