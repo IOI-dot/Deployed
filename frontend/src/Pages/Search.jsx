@@ -11,7 +11,7 @@ function Search() {
 
   const fetchRooms = () => {
     setLoading(true);
-    fetch("http://localhost:3000/api/timeline")
+    fetch("/api/timeline")
       .then((res) => { if (!res.ok) throw new Error("Backend error"); return res.json(); })
       .then((data) => { setRooms(Array.isArray(data) ? data : []); setLoading(false); })
       .catch((err) => { console.error("Error fetching rooms:", err); setLoading(false); });
@@ -40,23 +40,32 @@ function Search() {
       const userObj = JSON.parse(savedUser);
       const tzoffset = new Date().getTimezoneOffset() * 60000;
       const todayDate = new Date(Date.now() - tzoffset).toISOString().split("T")[0];
-      fetch(`http://localhost:3000/api/bookings/quota/${userObj.id}/${todayDate}`)
+      fetch(`/api/bookings/quota/${userObj.id}/${todayDate}`)
         .then(res => res.json())
         .then(data => { if (data.success) setUsedHours(data.usedHours); })
         .catch(err => console.error("Quota fetch error", err));
     }
   };
 
-  const fetchMyBookings = () => {
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) {
-      const userObj = JSON.parse(savedUser);
-      fetch(`http://localhost:3000/api/bookings/my-bookings/${userObj.id}`)
-        .then(res => res.json())
-        .then(data => { if (data.success) setMyBookings(data.bookings); })
-        .catch(err => console.error("My Bookings fetch error", err));
-    }
-  };
+ const fetchMyBookings = () => {
+  const savedUser = localStorage.getItem("user");
+  if (savedUser) {
+    const userObj = JSON.parse(savedUser);
+    fetch(`/api/bookings/my-bookings/${userObj.id}`)
+      .then(res => res.json())
+      .then(data => {
+        console.log("RAW BOOKINGS:", data.bookings?.[0]); // remove after confirming fix
+        if (data.success) {
+          const normalized = data.bookings.map(b => ({
+            ...b,
+            booking_id: b.booking_id ?? b.bookingid ?? b.bookingID ?? b.id
+          }));
+          setMyBookings(normalized);
+        }
+      })
+      .catch(err => console.error("My Bookings fetch error", err));
+  }
+};
 
   useEffect(() => { fetchRooms(); fetchQuota(); }, []);
 
@@ -72,9 +81,22 @@ function Search() {
   const handleCancelBooking = async (booking) => {
     const savedUser = localStorage.getItem("user");
     const userObj = savedUser ? JSON.parse(savedUser) : null;
+     // Add this guard
+  if (!userObj?.id) {
+    alert("You must be logged in to cancel a booking.");
+    navigate("/");
+    return;
+  }
+
+  // Add this guard
+  if (!booking.booking_id) {
+    console.error("Booking object missing booking_id:", booking);
+    alert("Invalid booking. Please refresh and try again.");
+    return;
+  }
     setCancellingId(booking.booking_id);
     try {
-      const res = await fetch(`http://localhost:3000/api/bookings/${booking.booking_id}/cancel`, {
+      const res = await fetch(`/api/bookings/${booking.booking_id}/cancel`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: userObj ? userObj.id : undefined })
@@ -103,11 +125,18 @@ function Search() {
       alert("Please choose room, date, and time.");
       return;
     }
+    
     try {
       setEditingId(editModal.booking_id);
       const savedUser = localStorage.getItem("user");
       const userObj = savedUser ? JSON.parse(savedUser) : null;
-      const res = await fetch(`http://localhost:3000/api/bookings/${editModal.booking_id}/edit`, {
+       if (!userObj?.id) {
+    alert("You must be logged in to edit a booking.");
+    navigate("/");
+    return;
+      }
+
+      const res = await fetch(`/api/bookings/${editModal.booking_id}/edit`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
